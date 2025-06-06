@@ -7,8 +7,9 @@ app = Flask(__name__)
 def insta_login(username, password):
     session = requests.Session()
 
+    # Initial headers
     session.headers.update({
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36",
         "Accept": "*/*",
         "X-Requested-With": "XMLHttpRequest",
         "Referer": "https://www.instagram.com/accounts/login/",
@@ -20,11 +21,11 @@ def insta_login(username, password):
     except Exception as e:
         return {"status": "error", "message": f"Failed to get CSRF token: {str(e)}"}
 
-    csrf_token = session.cookies.get_dict().get('csrftoken')
-
+    csrf_token = session.cookies.get('csrftoken')
     if not csrf_token:
         return {"status": "error", "message": "CSRF token not found."}
 
+    # Prepare encrypted password format as Instagram expects
     enc_password = f"#PWD_INSTAGRAM_BROWSER:0:{int(time.time())}:{password}"
 
     payload = {
@@ -34,15 +35,19 @@ def insta_login(username, password):
         "optIntoOneTap": "false"
     }
 
+    # Update headers for login POST request
     session.headers.update({
         "X-CSRFToken": csrf_token,
-        "Content-Type": "application/x-www-form-urlencoded"
+        "Content-Type": "application/x-www-form-urlencoded",
+        "Accept": "application/json",
+        "Origin": "https://www.instagram.com"
     })
 
     try:
         login_resp = session.post(
             "https://www.instagram.com/api/v1/web/accounts/login/ajax/",
-            data=payload
+            data=payload,
+            allow_redirects=False
         )
     except Exception as e:
         return {"status": "error", "message": f"Login request failed: {str(e)}"}
@@ -53,7 +58,7 @@ def insta_login(username, password):
         return {"status": "error", "message": "Failed to parse login response."}
 
     if data.get("authenticated"):
-        sessionid = session.cookies.get_dict().get("sessionid")
+        sessionid = session.cookies.get("sessionid")
         return {
             "status": "success",
             "message": "Login successful.",
