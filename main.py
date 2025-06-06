@@ -1,6 +1,7 @@
 from flask import Flask, request, jsonify
 import requests
 import time
+from bs4 import BeautifulSoup
 
 app = Flask(__name__)
 
@@ -23,10 +24,11 @@ def insta_login(username, password):
         return {"status": "error", "message": f"Failed to get CSRF token: {str(e)}"}
 
     csrf_token = session.cookies.get_dict().get('csrftoken')
+
     if not csrf_token:
         return {"status": "error", "message": "CSRF token not found."}
 
-    # Step 2: Login payload
+    # Step 2: Login
     enc_password = f"#PWD_INSTAGRAM_BROWSER:0:{int(time.time())}:{password}"
 
     payload = {
