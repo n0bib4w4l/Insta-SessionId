@@ -1,7 +1,7 @@
+# app.py
 from flask import Flask, request, jsonify
 import requests
 import time
-from bs4 import BeautifulSoup
 
 app = Flask(__name__)
 
@@ -20,10 +20,9 @@ def insta_login(username, password):
     # Step 1: Get CSRF token
     try:
         resp = session.get("https://www.instagram.com/accounts/login/")
+        csrf_token = session.cookies.get_dict().get('csrftoken')
     except Exception as e:
         return {"status": "error", "message": f"Failed to get CSRF token: {str(e)}"}
-
-    csrf_token = session.cookies.get_dict().get('csrftoken')
 
     if not csrf_token:
         return {"status": "error", "message": "CSRF token not found."}
@@ -48,13 +47,9 @@ def insta_login(username, password):
             "https://www.instagram.com/api/v1/web/accounts/login/ajax/",
             data=payload
         )
+        data = login_resp.json()
     except Exception as e:
         return {"status": "error", "message": f"Login request failed: {str(e)}"}
-
-    try:
-        data = login_resp.json()
-    except Exception:
-        return {"status": "error", "message": "Failed to parse login response."}
 
     if data.get("authenticated"):
         sessionid = session.cookies.get_dict().get("sessionid")
