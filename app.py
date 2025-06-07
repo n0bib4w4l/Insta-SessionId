@@ -1,10 +1,11 @@
-# app.py
 from flask import Flask, request, jsonify
 import requests
+import time
+from bs4 import BeautifulSoup
 
 app = Flask(__name__)
 
-def get_user_info(sessionid, target_username):
+def insta_login(username, password):
     session = requests.Session()
 
     # Set headers
@@ -12,41 +13,74 @@ def get_user_info(sessionid, target_username):
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
         "Accept": "*/*",
         "X-Requested-With": "XMLHttpRequest",
-        "Referer": f"https://www.instagram.com/{target_username}/",
-        "Accept-Language": "en-US,en;q=0.9",
-        "Cookie": f"sessionid={sessionid};"
+        "Referer": "https://www.instagram.com/accounts/login/",
+        "Accept-Language": "en-US,en;q=0.9"
+    })
+
+    # Step 1: Get CSRF token
+    try:
+        resp = session.get("https://www.instagram.com/accounts/login/")
+    except Exception as e:
+        return {"status": "error", "message": f"Failed to get CSRF token: {str(e)}"}
+
+    csrf_token = session.cookies.get_dict().get('csrftoken')
+
+    if not csrf_token:
+        return {"status": "error", "message": "CSRF token not found."}
+
+    # Step 2: Login
+    enc_password = f"#PWD_INSTAGRAM_BROWSER:0:{int(time.time())}:{password}"
+
+    payload = {
+        "username": username,
+        "enc_password": enc_password,
+        "queryParams": "{}",
+        "optIntoOneTap": "false"
+    }
+
+    session.headers.update({
+        "X-CSRFToken": csrf_token,
+        "Content-Type": "application/x-www-form-urlencoded"
     })
 
     try:
-        resp = session.get(f"https://www.instagram.com/api/v1/users/web_profile_info/?username={target_username}")
-        data = resp.json()
+        login_resp = session.post(
+            "https://www.instagram.com/api/v1/web/accounts/login/ajax/",
+            data=payload
+        )
     except Exception as e:
-        return {"status": "error", "message": f"Failed to get user info: {str(e)}"}
+        return {"status": "error", "message": f"Login request failed: {str(e)}"}
 
-    if "data" in data:
+    try:
+        data = login_resp.json()
+    except Exception:
+        return {"status": "error", "message": "Failed to parse login response."}
+
+    if data.get("authenticated"):
+        sessionid = session.cookies.get_dict().get("sessionid")
         return {
             "status": "success",
-            "message": "User info fetched.",
+            "message": "Login successful.",
             "Developer": "@meta_server",
-            "result": data
+            "sessionid": sessionid
         }
     else:
         return {
             "status": "failed",
-            "message": "Failed to fetch user info.",
+            "message": data.get("message", "Login failed."),
             "error": data
         }
 
 @app.route('/api', methods=['GET'])
-def api_get_user_info():
-    sessionid = request.args.get('sessionid')
-    target_username = request.args.get('target_username')
+def api_login():
+    username = request.args.get('username')
+    password = request.args.get('password')
 
-    if not sessionid or not target_username:
-        return jsonify({"status": "error", "message": "Missing sessionid or target_username parameter."})
+    if not username or not password:
+        return jsonify({"status": "error", "message": "Missing username or password parameter."})
 
-    result = get_user_info(sessionid, target_username)
+    result = insta_login(username, password)
     return jsonify(result)
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
+    
