@@ -56,7 +56,7 @@ def insta_login(username, password):
         return {
             "status": "success",
             "message": "Login successful.",
-            "Developer": "@nobi_shops",
+            "Developer": "@meta_server",
             "sessionid": sessionid
         }
     else:
