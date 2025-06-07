@@ -1,7 +1,4 @@
 Flask
-request
-jsonify
-time
-bs4 
-BeautifulSoupflask
 requests
+beautifulsoup4
+bs4
