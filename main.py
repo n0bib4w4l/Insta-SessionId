@@ -1,47 +1,48 @@
-from fastapi import FastAPI, Form, Request
-from fastapi.responses import HTMLResponse, JSONResponse
-import time, requests
+from flask import Flask, request, jsonify
+
+import requests
+import time
 from bs4 import BeautifulSoup
 
-app = FastAPI()
+app = Flask(__name__)
 
-@app.get("/", response_class=HTMLResponse)
+@app.route('/', methods=['GET'])
 def homepage():
     return """
     <html>
     <head>
-        <title>🔐 Insta Session API</title>
+        <title>💀 Insta SessionID API</title>
         <style>
             body {
-                background-color: black;
-                color: #00FF00;
+                background-color: #000;
+                color: #00ff00;
                 font-family: monospace;
-                text-align: center;
                 padding: 30px;
+                text-align: center;
             }
-            .button {
-                background-color: #00FF00;
-                color: black;
+            .btn {
+                background-color: #00ff00;
                 padding: 10px 20px;
+                border: none;
+                border-radius: 4px;
+                color: #000;
                 text-decoration: none;
                 font-weight: bold;
-                border-radius: 5px;
             }
         </style>
     </head>
     <body>
-        <h1>💀 Insta SessionID API</h1>
-        <p>This API provides Instagram session ID using username & password.</p>
-        <p><b>POST:</b> <code>/get_sessionid</code></p>
-        <p>🧠 Made by <b>@nobi_shops</b></p>
-        <br><br>
-        <a href="https://t.me/nobi_shops" class="button" target="_blank">🔗 Join Our Telegram</a>
+        <h1>🔐 Insta Session API</h1>
+        <p>This API returns Instagram session ID using username & password.</p>
+        <p><b>GET:</b> <code>/api?username=your_ig&password=your_pass</code></p>
+        <p>Made with 💚 by <b>@nobi_shops</b></p>
+        <br>
+        <a href="https://t.me/nobi_shops" class="btn" target="_blank">🔗 Join our Telegram</a>
     </body>
     </html>
     """
 
-@app.post("/get_sessionid")
-def get_sessionid(username: str = Form(...), password: str = Form(...)):
+def insta_login(username, password):
     session = requests.Session()
 
     session.headers.update({
@@ -52,11 +53,15 @@ def get_sessionid(username: str = Form(...), password: str = Form(...)):
         "Accept-Language": "en-US,en;q=0.9"
     })
 
-    # Get CSRF
-    resp = session.get("https://www.instagram.com/accounts/login/")
+    try:
+        resp = session.get("https://www.instagram.com/accounts/login/")
+    except Exception as e:
+        return {"status": "error", "message": f"Failed to get CSRF token: {str(e)}"}
+
     csrf_token = session.cookies.get_dict().get('csrftoken')
+
     if not csrf_token:
-        return {"status": "fail", "error": "CSRF token missing", "developer": "@nobi_shops"}
+        return {"status": "error", "message": "CSRF token not found."}
 
     enc_password = f"#PWD_INSTAGRAM_BROWSER:0:{int(time.time())}:{password}"
 
@@ -72,19 +77,44 @@ def get_sessionid(username: str = Form(...), password: str = Form(...)):
         "Content-Type": "application/x-www-form-urlencoded"
     })
 
-    login_resp = session.post("https://www.instagram.com/api/v1/web/accounts/login/ajax/", data=payload)
-    data = login_resp.json()
+    try:
+        login_resp = session.post(
+            "https://www.instagram.com/api/v1/web/accounts/login/ajax/",
+            data=payload
+        )
+    except Exception as e:
+        return {"status": "error", "message": f"Login request failed: {str(e)}"}
+
+    try:
+        data = login_resp.json()
+    except Exception:
+        return {"status": "error", "message": "Failed to parse login response."}
 
     if data.get("authenticated"):
         sessionid = session.cookies.get_dict().get("sessionid")
         return {
             "status": "success",
-            "sessionid": sessionid,
-            "developer": "@nobi_shops"
+            "message": "Login successful.",
+            "Developer": "@nobi_shops",
+            "sessionid": sessionid
         }
     else:
         return {
-            "status": "fail",
-            "error": data.get("message", "Login failed"),
-            "developer": "@nobi_shops"
+            "status": "failed",
+            "message": data.get("message", "Login failed."),
+            "error": data
         }
+
+@app.route('/api', methods=['GET'])
+def api_login():
+    username = request.args.get('username')
+    password = request.args.get('password')
+
+    if not username or not password:
+        return jsonify({"status": "error", "message": "Missing username or password parameter."})
+
+    result = insta_login(username, password)
+    return jsonify(result)
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000)
